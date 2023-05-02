@@ -10,7 +10,6 @@
 class ProcMem {
 public:
     ProcMem();
-    ~ProcMem();
 
     bool Process(const wchar_t* processName);
     DWORD Module(const wchar_t* moduleName);
