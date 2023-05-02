@@ -3,8 +3,12 @@
 #include "offsets.hpp"
 
 #include <cmath>
+#include <unordered_map>
 #include <vector>
 #include <Windows.h>
+
+// Store enemy data in a buffer
+std::unordered_map<DWORD, std::vector<EnemyData>> enemyDataBuffers;
 
 float NormalizeYaw(float yaw) {
     while (yaw < -180.0f) yaw += 360.0f;
@@ -90,6 +94,14 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     if (enemyDataBuffer.size() > 100) {
         enemyDataBuffer.erase(enemyDataBuffer.begin());
     }
+
+    // Store the collected data in the buffer
+    enemyDataBuffers[entityBase].push_back(enemyData);
+
+    // Optionally, limit the buffer size to a certain length
+    if (enemyDataBuffers[entityBase].size() > 100) {
+        enemyDataBuffers[entityBase].erase(enemyDataBuffers[entityBase].begin());
+    }
 }
 
 float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, float enemyVelZ,
@@ -125,12 +137,12 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     float bestYaw = currentYaw;
     float highestHitRate = 0.0f;
 
-    // Calculate the average enemy velocity and yaw change rate from the enemyDataBuffer
+     // Calculate the average enemy velocity and yaw change rate from the enemyDataBuffer
     float avgVelocity = 0.0f;
     float avgYawChangeRate = 0.0f;
-    int buffer_size = static_cast<int>(enemyDataBuffer.size());
+    int buffer_size = static_cast<int>(enemyDataBuffers[entityBase].size());
     for (int i = 0; i < buffer_size; ++i) {
-        const auto& enemyData = enemyDataBuffer[i];
+        const auto& enemyData = enemyDataBuffers[entityBase][i];
         avgVelocity += enemyData.velocity;
         if (i > 0) {
             float yawChange = std::abs(enemyData.animationState - enemyDataBuffer[i - 1].animationState);
@@ -165,9 +177,9 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         // Calculate the hit rate for the current test yaw using the collected data
         float hitCount = 0;
         float totalCount = 0;
-        int buffer_size = static_cast<int>(enemyDataBuffer.size());
+        int buffer_size = static_cast<int>(enemyDataBuffers[entityBase].size());
         for (int i = 0; i < buffer_size; ++i) {
-            const auto& enemyData = enemyDataBuffer[i];
+            const auto& enemyData = enemyDataBuffers[entityBase][i];
 
             // Introduce a weighting system
             float weight = static_cast<float>(i + 1) / buffer_size;
