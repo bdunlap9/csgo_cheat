@@ -35,10 +35,34 @@ struct EnemyData {
     float velocity;
     float animationState;
     bool wasHit;
+    int previousHealth;
 };
 
 // Store enemy data in a buffer
 std::vector<EnemyData> enemyDataBuffer;
+
+float CalculateAimDifference(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
+    // Read local player and enemy positions
+    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    // Calculate aim difference
+    float aimDiff = std::atan2(localPlayerY - enemyY, localPlayerX - enemyX) - std::atan2(localPlayerZ - enemyZ, std::hypot(localPlayerX - enemyX, localPlayerY - enemyY));
+    return aimDiff;
+}
+
+bool EnemyWasHit(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase, float aimDiffThreshold) {
+    // Calculate the aim difference between the local player and the enemy
+    float aimDiff = CalculateAimDifference(mem, localPlayerBase, entityBase);
+
+    // Check if the aim difference is within the threshold
+    return std::abs(aimDiff) <= aimDiffThreshold;
+}
 
 void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     EnemyData enemyData;
@@ -52,8 +76,37 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     // Collect enemy animation state (you'll need to find the correct offset)
     enemyData.animationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
 
-    // Collect hit status (you'll need a method to determine if the enemy was hit)
-    enemyData.wasHit = /* CHECK_IF_ENEMY_WAS_HIT_METHOD */ false;
+    // Collect enemy health
+    int currentHealth = mem.Read<int>(entityBase + hazedumper::netvars::m_iHealth);
+
+    // Check if the enemy was hit by comparing the current health to the previous health
+    bool wasHitByHealth = false;
+    if (!enemyDataBuffer.empty()) {
+        const EnemyData& previousEnemyData = enemyDataBuffer.back();
+        wasHitByHealth = currentHealth < previousEnemyData.previousHealth;
+    }
+
+    // Calculate the change in yaw
+    float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
+    float previousYaw = !enemyDataBuffer.empty() ? enemyDataBuffer.back().yaw : currentYaw;
+    float yawChange = std::abs(currentYaw - previousYaw);
+
+    // Set the base threshold value
+    float aimDiffThreshold = 0.1f;
+
+    // Adjust the threshold based on the change in yaw
+    float yawChangeFactor = 2.0f;
+    float adjustedAimDiffThreshold = aimDiffThreshold + yawChange * yawChangeFactor;
+
+    // Check if the enemy was hit based on the aim difference and the adjusted threshold value
+    bool wasHitByAim = EnemyWasHit(mem, localPlayerBase, entityBase, adjustedAimDiffThreshold);
+
+    // Combine the hit checks (you can modify this logic as needed)
+    enemyData.wasHit = wasHitByHealth || wasHitByAim;
+
+    // Store the current health and yaw in the enemyData
+    enemyData.previousHealth = currentHealth;
+    enemyData.yaw = currentYaw;
 
     // Store the collected data in the buffer
     enemyDataBuffer.push_back(enemyData);
