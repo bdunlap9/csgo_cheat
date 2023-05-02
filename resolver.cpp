@@ -128,3 +128,22 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
 }
+
+float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
+    // Read the positions of the local player and the enemy
+    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    // Calculate the distance between the local player and the enemy
+    float dx = enemyX - localPlayerX;
+    float dy = enemyY - localPlayerY;
+    float dz = enemyZ - localPlayerZ;
+    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+    return distance;
+}
