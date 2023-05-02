@@ -40,27 +40,6 @@ struct EnemyData {
 // Store enemy data in a buffer
 std::vector<EnemyData> enemyDataBuffer;
 
-// Store enemy data in a buffer
-std::vector<EnemyData> enemyDataBuffer;
-
-void BruteResolver(ProcMem& mem, DWORD clientBase, DWORD localPlayerBase, DWORD entityBase) {
-    // Read the enemy's current yaw
-    float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
-    
-    // This is a simple example of a resolver that tries to "bruteforce" the correct yaw
-    // You'll need to develop a more sophisticated algorithm to accurately predict the hitbox positions
-    for (int i = 0; i < 4; ++i) {
-        float testYaw = currentYaw + 45.0f * i;
-        float normalizedTestYaw = NormalizeYaw(testYaw);
-        
-        // Write the testYaw back to the enemy's m_angEyeAnglesY
-        mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, normalizedTestYaw);
-        
-        // Test if the new yaw yields better results (e.g., by checking if the shots hit the enemy)
-        // If successful, you can break the loop and use this yaw
-    }
-}
-
 void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     EnemyData enemyData;
 
@@ -85,6 +64,28 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     }
 }
 
+float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, float enemyVelZ,
+                                           float localPlayerAimPitch, float localPlayerAimYaw) {
+    // Calculate the enemy's speed
+    float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
+
+    // Calculate the aim angle difference between local player and enemy
+    float aimAngleDiff = std::sqrt((localPlayerAimPitch * localPlayerAimPitch) + (localPlayerAimYaw * localPlayerAimYaw));
+
+    // You can adjust these values based on how much you want the velocity and aim angles to affect the weight
+    float velocityWeightFactor = 0.5f;
+    float aimAngleWeightFactor = 0.5f;
+
+    // Normalize the enemy's speed and the aim angle difference to the range [0, 1]
+    float normalizedSpeed = enemySpeed / 500.0f; // Assuming max speed of 500 units
+    float normalizedAimAngleDiff = aimAngleDiff / 360.0f; // Assuming max aim angle difference of 360 degrees
+
+    // Calculate the weight based on the normalized speed and aim angle difference
+    float weight = (1.0f - velocityWeightFactor) * normalizedSpeed + (1.0f - aimAngleWeightFactor) * normalizedAimAngleDiff;
+
+    return weight;
+}
+
 void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     try {
         // Read the enemy's current yaw
@@ -102,18 +103,15 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     for (int i = 0; i < numYawSteps; ++i) {
         float testYaw = currentYaw + (360.0f / numYawSteps) * i;
         float normalizedTestYaw = NormalizeYaw(testYaw);
-        float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
-        float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
-        float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
 
-        float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
-        float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
-        float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+        // Read the enemy's velocity
+        float enemyVelX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x0);
+        float enemyVelY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x4);
+        float enemyVelZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x8);
 
-        float dx = enemyX - localPlayerX;
-        float dy = enemyY - localPlayerY;
-        float dz = enemyZ - localPlayerZ;
-        float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        // Read local player's aim angles
+        float localPlayerAimPitch = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesX);
+        float localPlayerAimYaw = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesY);
 
         // Calculate the hit rate for the current test yaw using the collected data
         float hitCount = 0;
@@ -125,19 +123,24 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
             // Introduce a weighting system
             float weight = static_cast<float>(i + 1) / buffer_size;
 
-            // Check if the test yaw would hit the enemy based on the enemy data
+            // Check if the test yaw would hit the enemy based on the enemy data and additional factors
             if (enemyData.animationState > 0.5f && std::abs(normalizedTestYaw - currentYaw) < 45.0f) {
                 float distance = GetDistance(mem, localPlayerBase, entityBase);
-                float weight = 1.0f;
+
+                // Adjust the weight based on distance
                 if (distance > 200.0f && distance < 300.0f) {
-                    weight = 1.5f;
+                    weight *= 1.5f;
                 } else if (distance > 300.0f) {
-                    weight = 2.0f;
+                    weight *= 2.0f;
                 }
+
+                // Adjust the weight based on enemy's velocity and local player's aim angles
+                weight *= CalculateWeightBasedOnVelocityAndAim(enemyVelX, enemyVelY, enemyVelZ, localPlayerAimPitch, localPlayerAimYaw);
+
                 if (enemyData.wasHit) {
-                    hitCount += static_cast<int>(weight);
+                    hitCount += weight;
                 }
-                totalCount += static_cast<int>(weight);
+                totalCount += weight;
             }
         }
 
@@ -151,7 +154,6 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     }
 
     try {
-        // Write the best yaw back to the enemy's m_angEyeAnglesY
         mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
