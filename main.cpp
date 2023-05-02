@@ -20,7 +20,11 @@ int main() {
     client = mem.Module(L"client.dll");
 
     while (!GetAsyncKeyState(VK_END)) {
-        localPlayer = mem.Read<DWORD>(client + dwLocalPlayer);
+        try {
+            localPlayer = mem.Read<DWORD>(client + dwLocalPlayer);
+        } catch (const std::runtime_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
         leftShift = GetAsyncKeyState(VK_LSHIFT);
 
         if (localPlayer) {
@@ -45,36 +49,63 @@ float RandomFloat(float min, float max) {
 
 void RCS() {
     DWORD engine = mem.Module(L"engine.dll");
-    int shotsFired = mem.Read<int>(localPlayer + m_iShotsFired);
+    try {
+        int shotsFired = mem.Read<int>(localPlayer + m_iShotsFired);
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
     if (shotsFired > 1) {
         DWORD forceAim = client + dwForceAim;
-        Vector3 viewAngles = mem.Read<Vector3>(engine + dwClientState_ViewAngles);
-        Vector3 aimPunch = mem.Read<Vector3>(localPlayer + m_aimPunchAngle);
+        try {
+            Vector3 viewAngles = mem.Read<Vector3>(engine + dwClientState_ViewAngles);
+            Vector3 aimPunch = mem.Read<Vector3>(localPlayer + m_aimPunchAngle);
+        } catch (const std::runtime_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
 
         float rcsFactor = 2.0f;
         float humanizationFactor = 0.95f;
         float randomX = RandomFloat(-0.2f, 0.2f);
         float randomY = RandomFloat(-0.2f, 0.2f);
         Vector3 newAngles = viewAngles - ((aimPunch * rcsFactor) * humanizationFactor) + Vector3(randomX, randomY, 0.0f);
-
-        mem.Write<Vector3>(forceAim, newAngles);
+        try {
+            mem.Write<Vector3>(forceAim, newAngles);
+        } catch (const std::runtime_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
     }
 }
 
 bool IsLineOfSightClear(DWORD entity) {
-    return mem.Read<bool>(localPlayer + m_bSpottedByMask + entity * 0x4);
+    try {
+        return mem.Read<bool>(localPlayer + m_bSpottedByMask + entity * 0x4);
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 }
 
 void Triggerbot() {
-    int crosshairID = mem.Read<int>(localPlayer + m_iCrosshairId);
-    DWORD entity = mem.Read<DWORD>(client + dwEntityList + (crosshairID - 1) * 0x10);
-    int entityHealth = mem.Read<int>(entity + m_iHealth);
-    int entityTeam = mem.Read<int>(entity + m_iTeamNum);
-    int playerTeam = mem.Read<int>(localPlayer + m_iTeamNum);
+    try {
+        int crosshairID = mem.Read<int>(localPlayer + m_iCrosshairId);
+        DWORD entity = mem.Read<DWORD>(client + dwEntityList + (crosshairID - 1) * 0x10);
+        int entityHealth = mem.Read<int>(entity + m_iHealth);
+        int entityTeam = mem.Read<int>(entity + m_iTeamNum);
+        int playerTeam = mem.Read<int>(localPlayer + m_iTeamNum);
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 
     if (entityHealth > 0 && entityTeam != playerTeam && IsLineOfSightClear(entity)) {
-        mem.Write<int>(client + dwForceAttack, 6);
+        try {
+            mem.Write<int>(client + dwForceAttack, 6);
+        } catch (const std::runtime_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
         Sleep(10);
-        mem.Write<int>(client + dwForceAttack, 4);
+        try {
+            mem.Write<int>(client + dwForceAttack, 4);
+        } catch (const std::runtime_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
     }
 }
