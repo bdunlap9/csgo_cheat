@@ -1,6 +1,7 @@
 #include "ProcMem.h"
 #include "csgo.hpp"
 #include "offsets.hpp"
+
 #include <cmath>
 #include <vector>
 #include <Windows.h>
@@ -96,19 +97,18 @@ float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, flo
     // Calculate the enemy's speed
     float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
 
-    // Calculate the aim angle difference between local player and enemy
-    float aimAngleDiff = std::sqrt((localPlayerAimPitch * localPlayerAimPitch) + (localPlayerAimYaw * localPlayerAimYaw));
+    // Convert local player's aim pitch and yaw to a direction vector
+    float aimDirX = std::cos(localPlayerAimPitch) * std::cos(localPlayerAimYaw);
+    float aimDirY = std::cos(localPlayerAimPitch) * std::sin(localPlayerAimYaw);
+    float aimDirZ = std::sin(localPlayerAimPitch);
 
-    // You can adjust these values based on how much you want the velocity and aim angles to affect the weight
-    float velocityWeightFactor = 0.5f;
-    float aimAngleWeightFactor = 0.5f;
+    // Calculate the cosine of the angle between local player's aim direction and enemy's velocity vector
+    float dotProduct = aimDirX * enemyVelX + aimDirY * enemyVelY + aimDirZ * enemyVelZ;
+    float aimDirMagnitude = std::sqrt(aimDirX * aimDirX + aimDirY * aimDirY + aimDirZ * aimDirZ);
+    float cosAngle = dotProduct / (enemySpeed * aimDirMagnitude);
 
-    // Normalize the enemy's speed and the aim angle difference to the range [0, 1]
-    float normalizedSpeed = enemySpeed / 500.0f; // Assuming max speed of 500 units
-    float normalizedAimAngleDiff = aimAngleDiff / 360.0f; // Assuming max aim angle difference of 360 degrees
-
-    // Calculate the weight based on the normalized speed and aim angle difference
-    float weight = (1.0f - velocityWeightFactor) * normalizedSpeed + (1.0f - aimAngleWeightFactor) * normalizedAimAngleDiff;
+    // Apply a sigmoid function to transform the angle difference into a value between 0 and 1
+    float weight = 1.0f / (1.0f + std::exp(-10.0f * (cosAngle - 0.5f)));
 
     return weight;
 }
@@ -125,8 +125,27 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     float bestYaw = currentYaw;
     float highestHitRate = 0.0f;
 
-    // Increase the resolution of the tested yaws
-    const int numYawSteps = 8;
+    // Calculate the average enemy velocity and yaw change rate from the enemyDataBuffer
+    float avgVelocity = 0.0f;
+    float avgYawChangeRate = 0.0f;
+    int buffer_size = static_cast<int>(enemyDataBuffer.size());
+    for (int i = 0; i < buffer_size; ++i) {
+        const auto& enemyData = enemyDataBuffer[i];
+        avgVelocity += enemyData.velocity;
+        if (i > 0) {
+            float yawChange = std::abs(enemyData.animationState - enemyDataBuffer[i - 1].animationState);
+            avgYawChangeRate += yawChange;
+        }
+    }
+    avgVelocity /= buffer_size;
+    avgYawChangeRate /= (buffer_size - 1);
+
+    // Set the number of yaw steps based on the average velocity and yaw change rate
+    int numYawSteps = 8; // Default value
+    if (avgVelocity > 250.0f || avgYawChangeRate > 30.0f) {
+        numYawSteps = 16;
+    }
+
     for (int i = 0; i < numYawSteps; ++i) {
         float testYaw = currentYaw + (360.0f / numYawSteps) * i;
         float normalizedTestYaw = NormalizeYaw(testYaw);
@@ -143,7 +162,7 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         // Calculate the hit rate for the current test yaw using the collected data
         float hitCount = 0;
         float totalCount = 0;
-        int buffer_size = static_cast<int>(enemyDataBuffer.size());
+        buffer_size = static_cast<int>(enemyDataBuffer.size());
         for (int i = 0; i < buffer_size; ++i) {
             const auto& enemyData = enemyDataBuffer[i];
 
@@ -156,8 +175,6 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
 
                 // Adjust the weight based on distance
                 if (distance > 200.0f && distance < 300.0f) {
-                    weight *= 1.5f;
-                } else if (distance > 300.0f) {
                     weight *= 2.0f;
                 }
 
@@ -180,6 +197,11 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         }
     }
 
+    // Apply smoothing to the best yaw
+    float smoothingFactor = 0.2f; // You can adjust this value based on how much smoothing you want (0 = no smoothing, 1 = instant transition)
+    float smoothedYaw = currentYaw + smoothingFactor * (bestYaw - currentYaw);
+    float normalizedSmoothedYaw = NormalizeYaw(smoothedYaw);
+    
     try {
         mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
     } catch (const std::runtime_error& e) {
