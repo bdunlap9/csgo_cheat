@@ -3,11 +3,31 @@
 #include "offsets.hpp"
 #include <cmath>
 #include <vector>
+#include <Windows.h>
 
 float NormalizeYaw(float yaw) {
     while (yaw < -180.0f) yaw += 360.0f;
     while (yaw > 180.0f) yaw -= 360.0f;
     return yaw;
+}
+
+float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
+    // Read the positions of the local player and the enemy
+    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
+    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
+    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+    // Calculate the distance between the local player and the enemy
+    float dx = enemyX - localPlayerX;
+    float dy = enemyY - localPlayerY;
+    float dz = enemyZ - localPlayerZ;
+    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+    return distance;
 }
 
 // Custom data structure to store enemy behavior data
@@ -16,6 +36,9 @@ struct EnemyData {
     float animationState;
     bool wasHit;
 };
+
+// Store enemy data in a buffer
+std::vector<EnemyData> enemyDataBuffer;
 
 // Store enemy data in a buffer
 std::vector<EnemyData> enemyDataBuffer;
@@ -103,13 +126,19 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
             float weight = static_cast<float>(i + 1) / buffer_size;
 
             // Check if the test yaw would hit the enemy based on the enemy data
-            if (enemyData.animationState > 0.5f &&
-                std::abs(normalizedTestYaw - currentYaw) < 45.0f &&
-                /* Consider other factors such as weapon type, player stance */) {
-
-                hitCount += weight / distance;
+            if (enemyData.animationState > 0.5f && std::abs(normalizedTestYaw - currentYaw) < 45.0f) {
+                float distance = GetDistance(mem, localPlayerBase, entityBase);
+                float weight = 1.0f;
+                if (distance > 200.0f && distance < 300.0f) {
+                    weight = 1.5f;
+                } else if (distance > 300.0f) {
+                    weight = 2.0f;
+                }
+                if (enemyData.wasHit) {
+                    hitCount += static_cast<int>(weight);
+                }
+                totalCount += static_cast<int>(weight);
             }
-            totalCount += weight;
         }
 
         float hitRate = hitCount / totalCount;
@@ -127,23 +156,4 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
-}
-
-float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
-    // Read the positions of the local player and the enemy
-    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
-
-    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
-
-    // Calculate the distance between the local player and the enemy
-    float dx = enemyX - localPlayerX;
-    float dy = enemyY - localPlayerY;
-    float dz = enemyZ - localPlayerZ;
-    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-
-    return distance;
 }
