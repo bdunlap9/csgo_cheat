@@ -28,10 +28,10 @@ int main() {
         leftShift = GetAsyncKeyState(VK_LSHIFT);
 
         if (localPlayer) {
+            std::thread t1(RCS);
+            t1.join();
             if (leftShift) {
-                std::thread t1(RCS);
                 std::thread t2(Triggerbot);
-                t1.join();
                 t2.join();
             }
         }
