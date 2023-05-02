@@ -159,10 +159,13 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         float localPlayerAimPitch = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesX);
         float localPlayerAimYaw = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesY);
 
+        // Read the enemy's animation state
+        float enemyAnimationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
+
         // Calculate the hit rate for the current test yaw using the collected data
         float hitCount = 0;
         float totalCount = 0;
-        buffer_size = static_cast<int>(enemyDataBuffer.size());
+        int buffer_size = static_cast<int>(enemyDataBuffer.size());
         for (int i = 0; i < buffer_size; ++i) {
             const auto& enemyData = enemyDataBuffer[i];
 
@@ -175,6 +178,8 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
 
                 // Adjust the weight based on distance
                 if (distance > 200.0f && distance < 300.0f) {
+                    weight *= 1.5f;
+                } else if (distance > 300.0f) {
                     weight *= 2.0f;
                 }
 
@@ -190,6 +195,15 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
 
         float hitRate = hitCount / totalCount;
 
+        // Use the enemy's animation state to further adjust the hit rate
+        if (enemyAnimationState > 0.5f) {
+            hitRate *= 1.2f;
+        }
+        else {
+            // enemyAnimationState < -0.5f
+            hitRate *= 0.8f;
+        }
+
         // If the hit rate is higher than the previous best, update the best yaw and highest hit rate
         if (hitRate > highestHitRate) {
             highestHitRate = hitRate;
@@ -201,7 +215,7 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     float smoothingFactor = 0.2f; // You can adjust this value based on how much smoothing you want (0 = no smoothing, 1 = instant transition)
     float smoothedYaw = currentYaw + smoothingFactor * (bestYaw - currentYaw);
     float normalizedSmoothedYaw = NormalizeYaw(smoothedYaw);
-    
+
     try {
         mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
     } catch (const std::runtime_error& e) {
