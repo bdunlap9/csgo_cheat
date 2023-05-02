@@ -36,7 +36,11 @@ inline Vector3 operator*(float scalar, const Vector3& vec) {
 }
 
 enum CSGOClassID {
-    // Add the required class IDs
+    CBaseAnimating = 1,
+    CBaseFlex = 12,
+    CBasePlayer = 15,
+    C_CSPlayer = 39,
+    C_BaseEntity = 11
 };
 
 #endif // CSGO_HPP
