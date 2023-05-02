@@ -41,29 +41,6 @@ struct EnemyData {
 // Store enemy data in a buffer
 std::vector<EnemyData> enemyDataBuffer;
 
-float CalculateAimDifference(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
-    // Read local player and enemy positions
-    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
-
-    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
-
-    // Calculate aim difference
-    float aimDiff = std::atan2(localPlayerY - enemyY, localPlayerX - enemyX) - std::atan2(localPlayerZ - enemyZ, std::hypot(localPlayerX - enemyX, localPlayerY - enemyY));
-    return aimDiff;
-}
-
-bool EnemyWasHit(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase, float aimDiffThreshold) {
-    // Calculate the aim difference between the local player and the enemy
-    float aimDiff = CalculateAimDifference(mem, localPlayerBase, entityBase);
-
-    // Check if the aim difference is within the threshold
-    return std::abs(aimDiff) <= aimDiffThreshold;
-}
-
 void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     EnemyData enemyData;
 
@@ -98,11 +75,8 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     float yawChangeFactor = 2.0f;
     float adjustedAimDiffThreshold = aimDiffThreshold + yawChange * yawChangeFactor;
 
-    // Check if the enemy was hit based on the aim difference and the adjusted threshold value
-    bool wasHitByAim = EnemyWasHit(mem, localPlayerBase, entityBase, adjustedAimDiffThreshold);
-
     // Combine the hit checks (you can modify this logic as needed)
-    enemyData.wasHit = wasHitByHealth || wasHitByAim;
+    enemyData.wasHit = wasHitByHealth;
 
     // Store the current health and yaw in the enemyData
     enemyData.previousHealth = currentHealth;
