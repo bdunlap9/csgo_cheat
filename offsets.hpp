@@ -3,23 +3,23 @@
 
 #include <cstddef>
 
-namespace hazedumper {
+namespace offsets {
     namespace netvars {
         constexpr ::std::ptrdiff_t m_aimPunchAngle = 0x302C;
         constexpr ::std::ptrdiff_t m_iShotsFired = 0xA390;
         constexpr ::std::ptrdiff_t m_iCrosshairId = 0xB3E4;
         constexpr ::std::ptrdiff_t m_iTeamNum = 0xF4;
-        constexpr ::std::ptrdiff_t m_iHealth = 0x100;
-        constexpr ::std::ptrdiff_t m_bSpottedByMask = 0x980;
+        int m_iHealth = 0x100;
+        bool m_bSpottedByMask = 0x980;
         constexpr ::std::ptrdiff_t m_vecOrigin = 0x138;
-        constexpr ::std::ptrdiff_t m_vecVelocity = 0x114;
+        float m_vecVelocity = 0x114;
         constexpr ::std::ptrdiff_t m_flPoseParameter = 0x2764;
         constexpr ::std::ptrdiff_t m_flSimulationTime = 0x268;
         constexpr ::std::ptrdiff_t m_dwBoneMatrix = 0x26A8;
-        constexpr ::std::ptrdiff_t m_bDormant = 0xED;
+        bool m_bDormant = 0xED;
         constexpr ::std::ptrdiff_t m_vecViewOffset = 0x108;
         constexpr ::std::ptrdiff_t m_lifeState = 0x25F;
-        constexpr ::std::ptrdiff_t m_bHasHelmet = 0xB3E9;
+        bool m_bHasHelmet = 0xB3E9;
     }
 
     namespace signatures {
@@ -33,7 +33,7 @@ namespace hazedumper {
         constexpr ::std::ptrdiff_t dwClientState_IsHLTV = 0x4D48;
         constexpr ::std::ptrdiff_t dwClientState_Map = 0x28C;
         constexpr ::std::ptrdiff_t dwClientState_MapDirectory = 0x188;
-        constexpr ::std::ptrdiff_t dwClientState_MaxPlayer = 0x388;
+        int dwClientState_MaxPlayer = 0x388;
         constexpr ::std::ptrdiff_t dwClientState_PlayerInfo = 0x52B8;
         constexpr ::std::ptrdiff_t dwClientState_State = 0x108;
         constexpr ::std::ptrdiff_t dwClientState_ViewAngles = 0x4D90;
