@@ -63,8 +63,12 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
 }
 
 void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
-    // Read the enemy's current yaw
-    float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
+    try {
+        // Read the enemy's current yaw
+        float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 
     // Initialize variables for the best yaw and the highest hit rate
     float bestYaw = currentYaw;
@@ -75,6 +79,18 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     for (int i = 0; i < numYawSteps; ++i) {
         float testYaw = currentYaw + (360.0f / numYawSteps) * i;
         float normalizedTestYaw = NormalizeYaw(testYaw);
+        float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
+        float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
+        float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+        float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
+        float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
+        float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+
+        float dx = enemyX - localPlayerX;
+        float dy = enemyY - localPlayerY;
+        float dz = enemyZ - localPlayerZ;
+        float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
 
         // Calculate the hit rate for the current test yaw using the collected data
         float hitCount = 0;
@@ -89,9 +105,9 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
             // Check if the test yaw would hit the enemy based on the enemy data
             if (enemyData.animationState > 0.5f &&
                 std::abs(normalizedTestYaw - currentYaw) < 45.0f &&
-                /* Consider other factors such as distance, weapon type, player stance */) {
+                /* Consider other factors such as weapon type, player stance */) {
 
-                hitCount += weight;
+                hitCount += weight / distance;
             }
             totalCount += weight;
         }
@@ -105,6 +121,10 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         }
     }
 
-    // Write the best yaw back to the enemy's m_angEyeAnglesY
-    mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
+    try {
+        // Write the best yaw back to the enemy's m_angEyeAnglesY
+        mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 }
