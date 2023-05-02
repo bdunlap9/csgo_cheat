@@ -7,8 +7,20 @@
 #include <vector>
 #include <Windows.h>
 
+// Custom data structure to store enemy behavior data
+struct EnemyData {
+    float velocity;
+    float animationState;
+    float yaw;
+    bool wasHit;
+    int previousHealth;
+};
+
 // Store enemy data in a buffer
 std::unordered_map<DWORD, std::vector<EnemyData>> enemyDataBuffers;
+
+// Store enemy data in a buffer
+std::vector<EnemyData> enemyDataBuffer;
 
 float NormalizeYaw(float yaw) {
     while (yaw < -180.0f) yaw += 360.0f;
@@ -18,13 +30,13 @@ float NormalizeYaw(float yaw) {
 
 float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     // Read the positions of the local player and the enemy
-    float localPlayerX = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float localPlayerY = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float localPlayerZ = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_vecOrigin + 0x8);
+    float localPlayerX = mem.Read<float>(localPlayerBase + offsets::netvars::m_vecOrigin + 0x0);
+    float localPlayerY = mem.Read<float>(localPlayerBase + offsets::netvars::m_vecOrigin + 0x4);
+    float localPlayerZ = mem.Read<float>(localPlayerBase + offsets::netvars::m_vecOrigin + 0x8);
 
-    float enemyX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x0);
-    float enemyY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x4);
-    float enemyZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecOrigin + 0x8);
+    float enemyX = mem.Read<float>(entityBase + offsets::netvars::m_vecOrigin + 0x0);
+    float enemyY = mem.Read<float>(entityBase + offsets::netvars::m_vecOrigin + 0x4);
+    float enemyZ = mem.Read<float>(entityBase + offsets::netvars::m_vecOrigin + 0x8);
 
     // Calculate the distance between the local player and the enemy
     float dx = enemyX - localPlayerX;
@@ -35,31 +47,20 @@ float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     return distance;
 }
 
-// Custom data structure to store enemy behavior data
-struct EnemyData {
-    float velocity;
-    float animationState;
-    bool wasHit;
-    int previousHealth;
-};
-
-// Store enemy data in a buffer
-std::vector<EnemyData> enemyDataBuffer;
-
 void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     EnemyData enemyData;
 
     // Collect enemy velocity
-    float velX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x0);
-    float velY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x4);
-    float velZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x8);
+    float velX = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x0);
+    float velY = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x4);
+    float velZ = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x8);
     enemyData.velocity = std::sqrt(velX * velX + velY * velY + velZ * velZ);
 
     // Collect enemy animation state (you'll need to find the correct offset)
     enemyData.animationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
 
     // Collect enemy health
-    int currentHealth = mem.Read<int>(entityBase + hazedumper::netvars::m_iHealth);
+    int currentHealth = mem.Read<int>(entityBase + offsets::netvars::m_iHealth);
 
     // Check if the enemy was hit by comparing the current health to the previous health
     bool wasHitByHealth = false;
@@ -69,7 +70,8 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     }
 
     // Calculate the change in yaw
-    float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
+    float currentYaw = mem.Read<float>(entityBase + offsets::netvars::
+    );
     float previousYaw = !enemyDataBuffer.empty() ? enemyDataBuffer.back().yaw : currentYaw;
     float yawChange = std::abs(currentYaw - previousYaw);
 
@@ -128,7 +130,7 @@ float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, flo
 void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     try {
         // Read the enemy's current yaw
-        float currentYaw = mem.Read<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY);
+        float currentYaw = mem.Read<float>(entityBase + offsets::netvars::m_angEyeAnglesY);
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
@@ -163,13 +165,13 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         float normalizedTestYaw = NormalizeYaw(testYaw);
 
         // Read the enemy's velocity
-        float enemyVelX = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x0);
-        float enemyVelY = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x4);
-        float enemyVelZ = mem.Read<float>(entityBase + hazedumper::netvars::m_vecVelocity + 0x8);
+        float enemyVelX = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x0);
+        float enemyVelY = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x4);
+        float enemyVelZ = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x8);
 
         // Read local player's aim angles
-        float localPlayerAimPitch = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesX);
-        float localPlayerAimYaw = mem.Read<float>(localPlayerBase + hazedumper::netvars::m_angEyeAnglesY);
+        float localPlayerAimPitch = mem.Read<float>(localPlayerBase + offsets::netvars::m_angEyeAnglesX);
+        float localPlayerAimYaw = mem.Read<float>(localPlayerBase + offsets::netvars::m_angEyeAnglesY);
 
         // Read the enemy's animation state
         float enemyAnimationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
@@ -229,7 +231,7 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     float normalizedSmoothedYaw = NormalizeYaw(smoothedYaw);
 
     try {
-        mem.Write<float>(entityBase + hazedumper::netvars::m_angEyeAnglesY, bestYaw);
+        mem.Write<float>(entityBase + offsets::netvars::m_angEyeAnglesY, bestYaw);
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
