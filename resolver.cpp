@@ -16,11 +16,77 @@ struct EnemyData {
     int previousHealth;
 };
 
+enum WeaponType {
+    PISTOL,
+    RIFLE,
+    SMG,
+    SNIPER,
+    SHOTGUN,
+    MACHINEGUN,
+    KNIFE,
+    GRENADE,
+    OTHER
+};
+
+float CalculateWeaponTypeWeight(WeaponType weaponType, float enemySpeed) {
+    float baseWeight;
+    float speedFactor;
+
+    switch (weaponType) {
+        case PISTOL:
+            baseWeight = 1.1f;
+            speedFactor = 0.005f;
+            break;
+        case RIFLE:
+            baseWeight = 1.0f;
+            speedFactor = 0.003f;
+            break;
+        case SMG:
+            baseWeight = 1.05f;
+            speedFactor = 0.008f;
+            break;
+        case SNIPER:
+            baseWeight = 0.9f;
+            speedFactor = 0.001f;
+            break;
+        case SHOTGUN:
+            baseWeight = 1.2f;
+            speedFactor = 0.01f;
+            break;
+        case MACHINEGUN:
+            baseWeight = 0.95f;
+            speedFactor = 0.002f;
+            break;
+        case KNIFE:
+            baseWeight = 0.5f;
+            speedFactor = 0.015f;
+            break;
+        case GRENADE:
+            baseWeight = 0.8f;
+            speedFactor = 0.007f;
+            break;
+        case OTHER:
+            baseWeight = 1.0f;
+            speedFactor = 0.005f;
+            break;
+    }
+
+    return baseWeight + speedFactor * enemySpeed;
+}
+
+WeaponType GetWeaponType(int weaponID) {
+    // Implement a function that returns the WeaponType based on the weaponID.
+    // You can use the weaponID to determine which type of weapon it is.
+}
+
 // Store enemy data in a buffer
 std::unordered_map<DWORD, std::vector<EnemyData>> enemyDataBuffers;
 
 // Store enemy data in a buffer
 std::vector<EnemyData> enemyDataBuffer;
+
+// Add a new variable to store the last LBY value
+float lastLBY = 0.0f;
 
 float NormalizeYaw(float yaw) {
     while (yaw < -180.0f) yaw += 360.0f;
@@ -106,7 +172,7 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
     }
 }
 
-float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, float enemyVelZ,
+float CalculateWeightBasedOnVelocityAndAimAndMovement(float enemyVelX, float enemyVelY, float enemyVelZ,
                                            float localPlayerAimPitch, float localPlayerAimYaw) {
     // Calculate the enemy's speed
     float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
@@ -123,6 +189,18 @@ float CalculateWeightBasedOnVelocityAndAim(float enemyVelX, float enemyVelY, flo
 
     // Apply a sigmoid function to transform the angle difference into a value between 0 and 1
     float weight = 1.0f / (1.0f + std::exp(-10.0f * (cosAngle - 0.5f)));
+    // Read the weapon's item definition index
+    int weaponID = mem.Read<int>(weaponBase + offsets::netvars::m_iItemDefinitionIndex);
+
+    // Get weapon type
+    WeaponType weaponType = GetWeaponType(weaponID);
+
+    // Calculate the enemy's speed
+    float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
+
+    // Adjust weight based on weapon type and enemy speed
+    float weaponTypeWeight = CalculateWeaponTypeWeight(weaponType, enemySpeed);
+    weight *= weaponTypeWeight;
 
     return weight;
 }
@@ -134,6 +212,17 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
+
+    // Set the number of yaw steps based on the average velocity and yaw change rate
+    int numYawSteps = 16; // Increase the default number of steps
+
+    // Read the enemy's LBY value
+    float enemyLBY = mem.Read<float>(entityBase + offsets::netvars::m_flLowerBodyYawTarget);
+    float lbyDelta = std::abs(enemyLBY - lastLBY);
+    lastLBY = enemyLBY;
+
+    // Check if the enemy is breaking LBY
+    bool isBreakingLBY = lbyDelta > 35.0f;
 
     // Initialize variables for the best yaw and the highest hit rate
     float bestYaw = currentYaw;
@@ -176,7 +265,13 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         // Read the enemy's animation state
         float enemyAnimationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
 
-        // Calculate the hit rate for the current test yaw using the collected data
+        // Read the enemy's movement type
+        int enemyMoveType = mem.Read<int>(entityBase + offsets::netvars::m_nMoveType);
+
+        // Read the enemy's active weapon
+        DWORD weaponBase = mem.Read<DWORD>(entityBase + offsets::netvars::m_hActiveWeapon);
+        int weaponType = mem.Read<int>(weaponBase + offsets::netvars::m_iWeaponType);
+
         float hitCount = 0;
         float totalCount = 0;
         int buffer_size = static_cast<int>(enemyDataBuffers[entityBase].size());
@@ -198,12 +293,17 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
                 }
 
                 // Adjust the weight based on enemy's velocity and local player's aim angles
-                weight *= CalculateWeightBasedOnVelocityAndAim(enemyVelX, enemyVelY, enemyVelZ, localPlayerAimPitch, localPlayerAimYaw);
+                weight *= CalculateWeightBasedOnVelocityAndAimAndMovement(enemyVelX, enemyVelY, enemyVelZ, localPlayerAimPitch, localPlayerAimYaw);
 
                 if (enemyData.wasHit) {
                     hitCount += weight;
                 }
                 totalCount += weight;
+                
+                // Adjust the weight based on LBY breaking
+                if (isBreakingLBY) {
+                    weight *= 1.5f;
+                }
             }
         }
 
