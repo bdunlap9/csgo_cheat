@@ -188,7 +188,7 @@ void Triggerbot() {
 }
 
 void RageBot() {
-    Memory mem; // Replace this with your memory reading/writing library initialization
+    ProcMem mem; // Replace this with your memory reading/writing library initialization
     // Add your game process name, module name, etc. for initializing the memory library
 
     while (true) {
@@ -197,7 +197,7 @@ void RageBot() {
         uintptr_t entityListBase = mem.Read<uintptr_t>(/* Your entity list base address */);
 
         // Loop through entities
-        for (int i = 0; i < /* Max number of players or entities in your game */; ++i) {
+        for (int i = 0; i < 64; ++i) {
             uintptr_t entityBase = mem.Read<uintptr_t>(entityListBase + i * 0x10);
 
             if (entityBase == 0) {
