@@ -1,34 +1,21 @@
 #include "ProcMem.h"
 #include "csgo.hpp"
 #include "offsets.hpp"
+#include "resolver.h"
 
 #include <cmath>
 #include <unordered_map>
 #include <vector>
 #include <Windows.h>
+#include <iostream>
+#include <chrono>
 
-// Custom data structure to store enemy behavior data
-struct EnemyData {
-    float velocity;
-    float animationState;
-    float yaw;
-    bool wasHit;
-    int previousHealth;
-};
+namespace resolver {
 
-enum WeaponType {
-    PISTOL,
-    RIFLE,
-    SMG,
-    SNIPER,
-    SHOTGUN,
-    MACHINEGUN,
-    KNIFE,
-    GRENADE,
-    OTHER
-};
+    const int TICK_RATE = 64;
+    const double LAG_COMPENSATION_TIME = 0.1;  // 100ms
 
-float CalculateWeaponTypeWeight(WeaponType weaponType, float enemySpeed) {
+    float CalculateWeaponTypeWeight(WeaponType weaponType, float enemySpeed) {
     float baseWeight;
     float speedFactor;
 
@@ -111,6 +98,116 @@ float GetDistance(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
 
     return distance;
+}
+
+struct GameState {
+    // Add your game state variables here
+};
+
+std::vector<std::pair<double, GameState>> gameStates;
+
+double get_current_time() {
+    return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+GameState get_current_game_state() {
+    GameState currentGameState;
+
+    // Update the current game state
+    return currentGameState;
+}
+
+void update_game_state(const GameState& newGameState) {
+    double currentTime = get_current_time();
+    gameStates.push_back({currentTime, newGameState});
+
+    // Remove game states older than the lag compensation time
+    while (!gameStates.empty() && gameStates.front().first < currentTime - LAG_COMPENSATION_TIME) {
+        gameStates.erase(gameStates.begin());
+    }
+}
+
+bool check_collision(const GameState& serverGameState, const PlayerState& player) {
+    // Check for collisions between the player and the game boundary
+    if (player.x < serverGameState.boundary.x ||
+        player.y < serverGameState.boundary.y ||
+        player.x + player.width > serverGameState.boundary.x + serverGameState.boundary.width ||
+        player.y + player.height > serverGameState.boundary.y + serverGameState.boundary.height) {
+        return true;
+    }
+
+    // Return false if no collision is detected
+    return false;
+}
+
+void update_velocity(PlayerState& player, const InputCommand& inputCommand) {
+    float acceleration = player.speed;
+
+    switch (inputCommand) {
+        case InputCommand::MOVE_UP:
+            player.vx = 0;
+            player.vy = acceleration;
+            break;
+        case InputCommand::MOVE_DOWN:
+            player.vx = 0;
+            player.vy = -acceleration;
+            break;
+        case InputCommand::MOVE_LEFT:
+            player.vx = -acceleration;
+            player.vy = 0;
+            break;
+        case InputCommand::MOVE_RIGHT:
+            player.vx = acceleration;
+            player.vy = 0;
+            break;
+    }
+}
+
+void compensate_for_lag(GameState& serverGameState, const ClientInput& clientInput) {
+    // Calculate the time elapsed since the server game state was created
+    float elapsedTime = static_cast<float>(get_current_time() - serverGameState.timestamp);
+
+    // Update the player's velocity based on the client input
+    PlayerState& player = serverGameState.players[clientInput.playerIndex];
+    update_velocity(player, clientInput.inputCommand);
+
+    // Update the player's position based on their velocity and elapsed time
+    float newX = player.x + player.vx * elapsedTime;
+    float newY = player.y + player.vy * elapsedTime;
+
+    // Check for collisions and only update the position if there is no collision
+    PlayerState tempPlayer = player;
+    tempPlayer.x = newX;
+    tempPlayer.y = newY;
+    if (!check_collision(serverGameState, tempPlayer)) {
+        player.x = newX;
+        player.y = newY;
+    }
+}
+
+void apply_client_input(GameState& lagCompensatedGameState, const ClientInput& clientInput) {
+    // Apply client input to the game state
+}
+
+void process_client_input(double clientTimestamp, const ClientInput& clientInput) {
+    GameState* serverGameState = nullptr;
+
+    // Find the server game state at the time of the client input
+    for (size_t i = 0; i < gameStates.size() - 1; ++i) {
+        if (gameStates[i].first <= clientTimestamp && clientTimestamp <= gameStates[i + 1].first) {
+            serverGameState = &gameStates[i].second;
+            break;
+        }
+    }
+
+    // If we found a server game state, perform lag compensation and process the input
+    if (serverGameState) {
+        GameState lagCompensatedGameState = *serverGameState;
+        compensate_for_lag(lagCompensatedGameState, clientInput);
+        apply_client_input(lagCompensatedGameState, clientInput);
+    } else {
+        // Ignore input if we don't have a matching game state
+    }
 }
 
 void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
@@ -205,7 +302,7 @@ float CalculateWeightBasedOnVelocityAndAimAndMovement(float enemyVelX, float ene
     return weight;
 }
 
-void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
+void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     try {
         // Read the enemy's current yaw
         float currentYaw = mem.Read<float>(entityBase + offsets::netvars::m_angEyeAnglesY);
@@ -228,7 +325,7 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
     float bestYaw = currentYaw;
     float highestHitRate = 0.0f;
 
-     // Calculate the average enemy velocity and yaw change rate from the enemyDataBuffer
+    // Calculate the average enemy velocity and yaw change rate from the enemyDataBuffer
     float avgVelocity = 0.0f;
     float avgYawChangeRate = 0.0f;
     int buffer_size = static_cast<int>(enemyDataBuffers[entityBase].size());
@@ -258,19 +355,9 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         float enemyVelY = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x4);
         float enemyVelZ = mem.Read<float>(entityBase + offsets::netvars::m_vecVelocity + 0x8);
 
-        // Read local player's aim angles
+                // Read local player's aim angles
         float localPlayerAimPitch = mem.Read<float>(localPlayerBase + offsets::netvars::m_angEyeAnglesX);
         float localPlayerAimYaw = mem.Read<float>(localPlayerBase + offsets::netvars::m_angEyeAnglesY);
-
-        // Read the enemy's animation state
-        float enemyAnimationState = mem.Read<float>(entityBase + /* ANIMATION_STATE_OFFSET */ 0);
-
-        // Read the enemy's movement type
-        int enemyMoveType = mem.Read<int>(entityBase + offsets::netvars::m_nMoveType);
-
-        // Read the enemy's active weapon
-        DWORD weaponBase = mem.Read<DWORD>(entityBase + offsets::netvars::m_hActiveWeapon);
-        int weaponType = mem.Read<int>(weaponBase + offsets::netvars::m_iWeaponType);
 
         float hitCount = 0;
         float totalCount = 0;
@@ -334,5 +421,6 @@ void DataDrivenResolver(ProcMem& mem, DWORD entityBase) {
         mem.Write<float>(entityBase + offsets::netvars::m_angEyeAnglesY, bestYaw);
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-    }
+    }  
+}
 }
