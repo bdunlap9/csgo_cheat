@@ -182,11 +182,31 @@ void compensate_for_lag(GameState& serverGameState, const ClientInput& clientInp
     if (!check_collision(serverGameState, tempPlayer)) {
         player.x = newX;
         player.y = newY;
+    } else {
+        // Calculate the closest point inside the game boundary
+        float clampedX = std::min(std::max(newX, serverGameState.boundary.x), serverGameState.boundary.x + serverGameState.boundary.width - player.width);
+        float clampedY = std::min(std::max(newY, serverGameState.boundary.y), serverGameState.boundary.y + serverGameState.boundary.height - player.height);
+
+        // Set the player's position to the closest point inside the game boundary
+        player.x = clampedX;
+        player.y = clampedY;
+
+        // Stop the player's movement in the colliding direction
+        if (clampedX != newX) {
+            player.vx = 0;
+        }
+        if (clampedY != newY) {
+            player.vy = 0;
+        }
     }
 }
 
 void apply_client_input(GameState& lagCompensatedGameState, const ClientInput& clientInput) {
-    // Apply client input to the game state
+    // Get the player state from the lag compensated game state
+    PlayerState& player = lagCompensatedGameState.players[clientInput.playerIndex];
+
+    // Update the player's velocity based on the client input
+    update_velocity(player, clientInput.inputCommand);
 }
 
 void process_client_input(double clientTimestamp, const ClientInput& clientInput) {
