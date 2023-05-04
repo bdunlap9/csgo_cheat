@@ -532,4 +532,3 @@ void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
         std::cerr << "Error: " << e.what() << std::endl;
     }  
 }
-}
