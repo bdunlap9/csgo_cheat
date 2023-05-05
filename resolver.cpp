@@ -11,6 +11,7 @@
 #include <chrono>
 
 namespace resolver {
+    std::deque<EnemyMovementData> enemyMovementHistory;
 
     const int TICK_RATE = 64;
     const double LAG_COMPENSATION_TIME = 0.1;  // 100ms
@@ -562,6 +563,12 @@ void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
                 weight = AdjustWeightForLBYBreaking(enemyData.isBreakingLBY, weight);
             }
         }
+        
+        // Calculate prediction time based on server tickrate
+        float predictionTime = 1.0f / serverTickRate;
+
+        // Predict enemy position
+        Vector3 predictedEnemyPosition = PredictEnemyPosition(enemyMovementHistory, predictionTime, map);
 
         float hitRate = hitCount / totalCount;
 
