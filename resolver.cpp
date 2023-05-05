@@ -277,8 +277,22 @@ void buffer_client_input(const ClientInput& clientInput) {
 }
 
 bool is_input_valid(const ClientInput& clientInput) {
-    // Implement validation logic based on your specific game mechanics
-    return true;
+    // Check if the input struct contains valid data
+    if (clientInput.action == nullptr || clientInput.playerID < 0 || clientInput.timestamp < 0) {
+        return false;
+    }
+
+    // Implement additional validation logic based on your specific game mechanics
+    // Example: Check if the action is one of the allowed actions
+    const std::vector<std::string> allowedActions = {"move_forward", "move_backward", "turn_left", "turn_right", "jump", "crouch", "shoot"};
+    bool validAction = std::find(allowedActions.begin(), allowedActions.end(), clientInput.action) != allowedActions.end();
+
+    // Example: Check if the input values are within allowed limits
+    bool validInputValues = clientInput.moveSpeed >= 0 && clientInput.moveSpeed <= 10 &&
+                            clientInput.turnSpeed >= 0 && clientInput.turnSpeed <= 10;
+
+    // Return true if all validation checks pass, otherwise return false
+    return validAction && validInputValues;
 }
 
 void apply_client_input(GameState& lagCompensatedGameState, const ClientInput& clientInput) {
@@ -375,7 +389,8 @@ void CollectEnemyData(ProcMem& mem, DWORD entityBase) {
 }
 
 float CalculateWeightBasedOnVelocityAndAimAndMovement(float enemyVelX, float enemyVelY, float enemyVelZ,
-                                           float localPlayerAimPitch, float localPlayerAimYaw) {
+                                           float localPlayerAimPitch, float localPlayerAimYaw, 
+                                           float enemyHealth, float playerAccuracy, float enemyRecentMovements) {
     // Calculate the enemy's speed
     float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
 
@@ -391,18 +406,16 @@ float CalculateWeightBasedOnVelocityAndAimAndMovement(float enemyVelX, float ene
 
     // Apply a sigmoid function to transform the angle difference into a value between 0 and 1
     float weight = 1.0f / (1.0f + std::exp(-10.0f * (cosAngle - 0.5f)));
-    // Read the weapon's item definition index
-    int weaponID = mem.Read<int>(weaponBase + offsets::netvars::m_iItemDefinitionIndex);
 
-    // Get weapon type
-    WeaponType weaponType = GetWeaponType(weaponID);
+    // Factor in enemy health (weight should be higher for lower health)
+    float enemyHealthWeight = 1.0f - (enemyHealth / 100.0f);
+    weight *= enemyHealthWeight;
 
-    // Calculate the enemy's speed
-    float enemySpeed = std::sqrt(enemyVelX * enemyVelX + enemyVelY * enemyVelY + enemyVelZ * enemyVelZ);
+    // Factor in player accuracy (weight should be higher for higher accuracy)
+    weight *= playerAccuracy;
 
-    // Adjust weight based on weapon type and enemy speed
-    float weaponTypeWeight = CalculateWeaponTypeWeight(weaponType, enemySpeed);
-    weight *= weaponTypeWeight;
+    // Factor in enemy's recent movements (weight should be higher for less predictable movements)
+    weight *= (1.0f - enemyRecentMovements);
 
     return weight;
 }
@@ -415,6 +428,36 @@ float AdjustHitRateBasedOnAnimationState(float hitRate, float animationState, fl
         hitRate *= negativeFactor;
     }
     return hitRate;
+}
+
+float CalculateDynamicSmoothingFactor(float enemySpeed, WeaponType weaponType) {
+    float baseSmoothingFactor = 0.2f;
+    float speedFactor = std::min(1.0f, enemySpeed / 300.0f); // Normalize enemy speed (assuming max speed is 300 units/s)
+    float weaponTypeFactor = 1.0f;
+
+    switch (weaponType) {
+        case WeaponType::SniperRifle:
+            weaponTypeFactor = 0.5f;
+            break;
+        case WeaponType::Rifle:
+            weaponTypeFactor = 0.8f;
+            break;
+        case WeaponType::SMG:
+            weaponTypeFactor = 1.0f;
+            break;
+        case WeaponType::Shotgun:
+            weaponTypeFactor = 1.2f;
+            break;
+        case WeaponType::Pistol:
+            weaponTypeFactor = 1.0f;
+            break;
+        default:
+            weaponTypeFactor = 1.0f;
+            break;
+    }
+
+    float dynamicSmoothingFactor = baseSmoothingFactor * (1.0f - speedFactor) * weaponTypeFactor;
+    return dynamicSmoothingFactor;
 }
 
 void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
@@ -498,10 +541,13 @@ void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
         }
     }
 
+    // Calculate the dynamic smoothing factor
+    float dynamicSmoothingFactor = CalculateDynamicSmoothingFactor(enemySpeed, weaponType);
+
     // Apply smoothing to the best yaw
-    float smoothingFactor = 0.2f; // You can adjust this value based on how much smoothing you want (0 = no smoothing, 1 = instant transition)
-    float smoothedYaw = currentYaw + smoothingFactor * (bestYaw - currentYaw);
+    float smoothedYaw = currentYaw + dynamicSmoothingFactor * (bestYaw - currentYaw);
     float normalizedSmoothedYaw = NormalizeYaw(smoothedYaw);
+
 
     try {
         mem.Write<float>(entityBase + offsets::netvars::m_angEyeAnglesY, normalizedSmoothedYaw);
