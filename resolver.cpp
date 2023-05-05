@@ -11,7 +11,6 @@
 #include <chrono>
 
 namespace resolver {
-    std::deque<EnemyMovementData> enemyMovementHistory;
 
     const int TICK_RATE = 64;
     const double LAG_COMPENSATION_TIME = 0.1;  // 100ms
@@ -20,55 +19,49 @@ namespace resolver {
     const float DASH_DURATION = 1.0f;
 
     float CalculateWeaponTypeWeight(WeaponType weaponType, float enemySpeed) {
-    float baseWeight;
-    float speedFactor;
+        float baseWeight;
+        float speedFactor;
 
-    switch (weaponType) {
-        case PISTOL:
-            baseWeight = 1.1f;
-            speedFactor = 0.005f;
-            break;
-        case RIFLE:
-            baseWeight = 1.0f;
-            speedFactor = 0.003f;
-            break;
-        case SMG:
-            baseWeight = 1.05f;
-            speedFactor = 0.008f;
-            break;
-        case SNIPER:
-            baseWeight = 0.9f;
-            speedFactor = 0.001f;
-            break;
-        case SHOTGUN:
-            baseWeight = 1.2f;
-            speedFactor = 0.01f;
-            break;
-        case MACHINEGUN:
-            baseWeight = 0.95f;
-            speedFactor = 0.002f;
-            break;
-        case KNIFE:
-            baseWeight = 0.5f;
-            speedFactor = 0.015f;
-            break;
-        case GRENADE:
-            baseWeight = 0.8f;
-            speedFactor = 0.007f;
-            break;
-        case OTHER:
-            baseWeight = 1.0f;
-            speedFactor = 0.005f;
-            break;
+        switch (weaponType) {
+            case PISTOL:
+                baseWeight = 1.1f;
+                speedFactor = 0.005f;
+                break;
+            case RIFLE:
+                baseWeight = 1.0f;
+                speedFactor = 0.003f;
+                break;
+            case SMG:
+                baseWeight = 1.05f;
+                speedFactor = 0.008f;
+                break;
+            case SNIPER:
+                baseWeight = 0.9f;
+                speedFactor = 0.001f;
+                break;
+            case SHOTGUN:
+                baseWeight = 1.2f;
+                speedFactor = 0.01f;
+                break;
+            case MACHINEGUN:
+                baseWeight = 0.95f;
+                speedFactor = 0.002f;
+                break;
+            case KNIFE:
+                baseWeight = 0.5f;
+                speedFactor = 0.015f;
+                break;
+            case GRENADE:
+                baseWeight = 0.8f;
+                speedFactor = 0.007f;
+                break;
+            case OTHER:
+                baseWeight = 1.0f;
+                speedFactor = 0.005f;
+                break;
     }
 
     return baseWeight + speedFactor * enemySpeed;
-}
-
-WeaponType GetWeaponType(int weaponID) {
-    // Implement a function that returns the WeaponType based on the weaponID.
-    // You can use the weaponID to determine which type of weapon it is.
-}
 
 // Store enemy data in a buffer
 std::unordered_map<DWORD, std::vector<EnemyData>> enemyDataBuffers;
@@ -595,4 +588,5 @@ void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     } catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }  
+}
 }
