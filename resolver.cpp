@@ -460,6 +460,40 @@ float CalculateDynamicSmoothingFactor(float enemySpeed, WeaponType weaponType) {
     return dynamicSmoothingFactor;
 }
 
+float AdjustWeightForLBYBreaking(bool isBreakingLBY, float currentWeight, float enemySpeed, float distance) {
+    if (isBreakingLBY) {
+        // Calculate dynamic factors based on enemy speed and distance from the local player
+        float speedFactor = 1.0f + 0.5f * std::min(enemySpeed / 300.0f, 1.0f); // You can adjust the factor and threshold values as needed
+        float distanceFactor = 1.0f + 0.5f * std::min(distance / 1000.0f, 1.0f); // You can adjust the factor and threshold values as needed
+        
+        // Add weapon type factor
+        float weaponTypeFactor = 1.0f;
+        switch (weaponType) {
+            case WeaponType::Sniper:
+                weaponTypeFactor = 1.2f;
+                break;
+            case WeaponType::Rifle:
+                weaponTypeFactor = 1.1f;
+                break;
+            case WeaponType::SMG:
+                weaponTypeFactor = 0.9f;
+                break;
+            case WeaponType::Shotgun:
+                weaponTypeFactor = 0.8f;
+                break;
+            // ... (other weapon types)
+        }
+
+        // Combine the dynamic factors
+        float lbyBreakingFactor = speedFactor * distanceFactor * weaponTypeFactor;
+
+        // Adjust the weight based on the dynamic LBY breaking factor
+        currentWeight *= lbyBreakingFactor;
+    }
+
+    return currentWeight;
+}
+
 void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     try {
         // Read the enemy's current yaw
