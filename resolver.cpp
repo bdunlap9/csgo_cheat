@@ -488,6 +488,28 @@ float AdjustWeightForLBYBreaking(bool isBreakingLBY, float currentWeight, float 
     return currentWeight;
 }
 
+float CorrectDesync(float enemyYaw, float localYaw) {
+    // Normalize the yaw values to be within the range [-180, 180]
+    enemyYaw = NormalizeYaw(enemyYaw);
+    localYaw = NormalizeYaw(localYaw);
+
+    // Calculate the difference between the enemy's yaw and the local player's yaw
+    float yawDifference = NormalizeYaw(enemyYaw - localYaw);
+
+    // Calculate the direction of the enemy's yaw
+    int yawDirection = (yawDifference >= 0.0f) ? 1 : -1;
+
+    // Check if the yaw difference exceeds the desync threshold for CS:GO
+    float desyncThreshold = 58.0f; // Desync threshold for CS:GO
+    if (std::abs(yawDifference) > desyncThreshold) {
+        // Apply correction based on the direction of the enemy's yaw
+        float correctionAmount = yawDirection * desyncThreshold;
+        localYaw = NormalizeYaw(localYaw + correctionAmount);
+    }
+
+    return localYaw;
+}
+
 void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
     try {
         // Read the enemy's current yaw
