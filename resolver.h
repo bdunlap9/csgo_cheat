@@ -1,11 +1,13 @@
 #include "ProcMem.h"
-#include "csgo.hpp"
 #include "offsets.hpp"
 
 #include <cmath>
 #include <unordered_map>
 #include <vector>
 #include <Windows.h>
+#include <queue>
+#include ""
+#include ""
 
 namespace Weapon {
     enum WeaponType {
@@ -245,6 +247,26 @@ public:
         float moveSpeed;
         float turnSpeed;
     };
+
+    struct EnemyMovementData {
+        Vector3 position;
+        Vector3 velocity;
+        float time;
+    };
+
+    enum CSGOClassID {
+        CBaseAnimating = 1,
+        CBaseFlex = 12,
+        CBasePlayer = 15,
+        C_CSPlayer = 39,
+        C_BaseEntity = 11
+    };
+
+    float NormalizeYaw(float yaw) {
+        while (yaw < -180.0f) yaw += 360.0f;
+        while (yaw > 180.0f) yaw -= 360.0f;
+        return yaw;
+    }
 
 }
 

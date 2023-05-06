@@ -1,4 +1,6 @@
 #include <Windows.h>
+#include <vector>
+#include <memory>
 #include <iostream>
 #include <thread>
 #include <random>
@@ -7,6 +9,7 @@
 #include "csgo.hpp"
 #include "offsets.hpp"
 #include "resolver.h"
+#include "../"
 
 using namespace offsets::netvars;
 using namespace offsets::signatures;
@@ -16,6 +19,9 @@ ProcMem mem;
 DWORD client, localPlayer, leftShift;
 
 #include <cmath>
+#include "resolver.cpp"
+#include "hooks.h"
+#include "../../source/repos/Weeke/hooks.h"
 
 struct Vector3 {
     float x, y, z;
@@ -51,7 +57,7 @@ Vector3 SmoothAim(const Vector3& currentAngles, const Vector3& aimAngles, float 
     return smoothedAngles;
 }
 
-bool IsAimingAtTarget(ProMem& mem, uintptr_t localPlayerBase, uintptr_t targetEntityBase, float aimTolerance) {
+bool IsAimingAtTarget(ProcMem& mem, uintptr_t localPlayerBase, uintptr_t targetEntityBase, float aimTolerance) {
     Vector3 localPlayerViewAngles = mem.Read<Vector3>(localPlayerBase + /* Offset for view angles */);
     Vector3 localPlayerPosition = mem.Read<Vector3>(localPlayerBase + /* Offset for position */);
     Vector3 targetHitboxPosition = mem.Read<Vector3>(targetEntityBase + /* Offset for the hitbox position */);
@@ -62,7 +68,7 @@ bool IsAimingAtTarget(ProMem& mem, uintptr_t localPlayerBase, uintptr_t targetEn
     return (std::abs(angleDelta.x) <= aimTolerance) && (std::abs(angleDelta.y) <= aimTolerance);
 }
 
-void Shoot(Memory& mem, uintptr_t localPlayerBase, uintptr_t targetEntityBase, float aimTolerance) {
+void Shoot(ProcMem& mem, uintptr_t localPlayerBase, uintptr_t targetEntityBase, float aimTolerance) {
     if (IsAimingAtTarget(mem, localPlayerBase, targetEntityBase, aimTolerance)) {
         int attackValue = 5; // Replace with appropriate value for your game
         mem.Write(localPlayerBase + /* Offset for attack */, attackValue);
@@ -103,6 +109,12 @@ int main() {
         } catch (const std::runtime_error& e) {
             std::cerr << "Error: " << e.what() << std::endl;
         }
+
+        // Update the game state at the server tick rate
+        resolver::update_game_state(resolver::GameState::get_current_game_state());
+        std::this_thread::sleep_for(std::chrono::duration<double>(1.0 / TICK_RATE));
+
+
         leftShift = GetAsyncKeyState(VK_LSHIFT);
 
         if (localPlayer) {
@@ -134,9 +146,11 @@ float RandomFloat(float min, float max) {
 }
 
 void RCS() {
+    int shotsFired = 0;
     try {
-        int shotsFired = mem.Read<int>(localPlayer + m_iShotsFired);
-    } catch (const std::runtime_error& e) {
+        shotsFired = mem.Read<int>(localPlayer + m_iShotsFired);
+    }
+    catch (const std::runtime_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
     if (shotsFired > 1) {
@@ -144,22 +158,21 @@ void RCS() {
         try {
             Vector3 viewAngles = mem.Read<Vector3>(offsets::signatures::dwClientState_ViewAngles);
             Vector3 aimPunch = mem.Read<Vector3>(localPlayer + m_aimPunchAngle);
-        } catch (const std::runtime_error& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
 
-        float rcsFactor = 2.0f;
-        float humanizationFactor = 0.95f;
-        float randomX = RandomFloat(-0.2f, 0.2f);
-        float randomY = RandomFloat(-0.2f, 0.2f);
-        Vector3 newAngles = viewAngles - ((aimPunch * rcsFactor) * humanizationFactor) + Vector3(randomX, randomY, 0.0f);
-        try {
+            float rcsFactor = 2.0f;
+            float humanizationFactor = 0.95f;
+            float randomX = RandomFloat(-0.2f, 0.2f);
+            float randomY = RandomFloat(-0.2f, 0.2f);
+            Vector3 newAngles = viewAngles - ((aimPunch * rcsFactor) * humanizationFactor) + Vector3(randomX, randomY, 0.0f);
+
             mem.Write<Vector3>(forceAim, newAngles);
-        } catch (const std::runtime_error& e) {
+        }
+        catch (const std::runtime_error& e) {
             std::cerr << "Error: " << e.what() << std::endl;
         }
     }
 }
+
 
 void Triggerbot() {
     try {
@@ -197,7 +210,7 @@ void RageBot() {
         uintptr_t entityListBase = mem.Read<uintptr_t>(/* Your entity list base address */);
 
         // Loop through entities
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < /* Max number of players or entities in your game */; ++i) {
             uintptr_t entityBase = mem.Read<uintptr_t>(entityListBase + i * 0x10);
 
             if (entityBase == 0) {
@@ -223,4 +236,16 @@ void RageBot() {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+}
+
+int main() {
+    hooks::InitializeVEHHooks();
+
+    // Add VEH hook
+    hooks::AddVEHHook(/* Original function address */, hooks::MyHookedFunction);
+
+    // ... (the rest of your code) ...
+
+    hooks::RemoveVEHHooks();
+    return 0;
 }

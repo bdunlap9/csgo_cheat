@@ -36,10 +36,6 @@ namespace offsets {
         int dwClientState_MaxPlayer = 0x388;
         constexpr ::std::ptrdiff_t dwClientState_PlayerInfo = 0x52B8;
         constexpr ::std::ptrdiff_t dwClientState_State = 0x108;
-        constexpr ::std::ptrdiff_t dwClientState_ViewAngles = 0x4D90;
-        constexpr ::std::ptrdiff_t dwClientState_Map = 0x28C;
-        constexpr ::std::ptrdiff_t dwEntityList = 0x4DA31EC;
-        constexpr ::std::ptrdiff_t dwForceAttack = 0x31ED810;
         constexpr ::std::ptrdiff_t dwForceAttack2 = 0x31ED81C;
         constexpr ::std::ptrdiff_t dwForceBackward = 0x31ED864;
         constexpr ::std::ptrdiff_t dwForceForward = 0x31ED85C;
@@ -47,5 +43,5 @@ namespace offsets {
         constexpr ::std::ptrdiff_t dwForceLeft = 0x31ED884;
         constexpr ::std::ptrdiff_t dwForceRight = 0x31ED87C;
         }
-
+}
 #endif // OFFSETS_HPP
