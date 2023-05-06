@@ -10,7 +10,6 @@
 #include <Windows.h>
 #include <iostream>
 #include <chrono>
-using namespace Weapon::DataDrivenResolver;
 
 namespace resolver {
 
@@ -20,51 +19,52 @@ namespace resolver {
     const float DASH_SPEED_MULTIPLIER = 2.0f;
     const float DASH_DURATION = 1.0f;
 
-    void CalculateWeaponTypeWeight(WeaponType weaponType, float enemySpeed); {
+    float CalculateWeaponTypeWeight(Weapon::WeaponType weaponType, float enemySpeed) {
         float baseWeight;
         float speedFactor;
 
         switch (weaponType) {
-        case PISTOL:
+        case Weapon::WeaponType::PISTOL:
             baseWeight = 1.1f;
             speedFactor = 0.005f;
             break;
-        case RIFLE:
+        case Weapon::WeaponType::RIFLE:
             baseWeight = 1.0f;
             speedFactor = 0.003f;
             break;
-        case SMG:
+        case Weapon::WeaponType::SMG:
             baseWeight = 1.05f;
             speedFactor = 0.008f;
             break;
-        case SNIPER:
+        case Weapon::WeaponType::SNIPER:
             baseWeight = 0.9f;
             speedFactor = 0.001f;
             break;
-        case SHOTGUN:
+        case Weapon::WeaponType::SHOTGUN:
             baseWeight = 1.2f;
             speedFactor = 0.01f;
             break;
-        case MACHINEGUN:
+        case Weapon::WeaponType::MACHINEGUN:
             baseWeight = 0.95f;
             speedFactor = 0.002f;
             break;
-        case KNIFE:
+        case Weapon::WeaponType::KNIFE:
             baseWeight = 0.5f;
             speedFactor = 0.015f;
             break;
-        case GRENADE:
+        case Weapon::WeaponType::GRENADE:
             baseWeight = 0.8f;
             speedFactor = 0.007f;
             break;
-        case OTHER:
+        case Weapon::WeaponType::OTHER:
             baseWeight = 1.0f;
             speedFactor = 0.005f;
             break;
         }
 
         return baseWeight + speedFactor * enemySpeed;
-    };
+    }
+
 
     // Store enemy data in a buffer
     std::unordered_map<DWORD, std::vector<Weapon::DataDrivenResolver::EnemyData>> enemyDataBuffers;
@@ -132,11 +132,18 @@ bool check_collision(const Weapon::DataDrivenResolver::GameState& serverGameStat
     return false;
 }
 
+enum class InputCommand {
+    MOVE_UP,
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT
+};
+
 void update_velocity(Weapon::DataDrivenResolver::PlayerState& player, const Weapon::DataDrivenResolver::InputCommand& inputCommand) {
     float acceleration = player.speed;
 
     switch (inputCommand) {
-        case InputCommand::MOVE_UP:
+    case InputCommand::MOVE_UP:
             player.vx = 0;
             player.vy = acceleration;
             break;
@@ -215,7 +222,7 @@ void apply_ability(Weapon::DataDrivenResolver::PlayerState& player) {
     }
 }
 
-bool check_collision_3d(const GameState& gameState, const Weapon::DataDrivenResolver::PlayerState& player) {
+bool check_collision_3d(const Weapon::DataDrivenResolver::GameState& gameState, const Weapon::DataDrivenResolver::PlayerState& player) {
     // Implement 3D collision detection based on your specific game mechanics and objects
     // This is just a simple AABB collision detection example
     for (const Weapon::DataDrivenResolver::GameObject& obj : gameState.gameObjects) {
@@ -610,9 +617,4 @@ void DataDrivenResolver(ProcMem& mem, DWORD localPlayerBase, DWORD entityBase) {
         std::cerr << "Error: " << e.what() << std::endl;
     }  
 }
-}
-
-float Weapon::NormalizeYaw(float yaw)
-{
-    return 0.0f;
 }

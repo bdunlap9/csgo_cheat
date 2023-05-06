@@ -14,7 +14,6 @@
 #include "hooks.h"
 
 namespace hooks {
-    // ...
 
     DWORD_PTR GetModuleBaseAddress(DWORD processID, const wchar_t* moduleName) {
         DWORD_PTR moduleBaseAddress = 0;

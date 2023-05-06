@@ -6,10 +6,19 @@
 #include <vector>
 #include <Windows.h>
 #include <queue>
-#include ""
-#include ""
 
 namespace Weapon {
+
+    float Weapon::NormalizeYaw(float yaw) {
+        while (yaw > 180.0f) {
+            yaw -= 360.0f;
+        }
+        while (yaw < -180.0f) {
+            yaw += 360.0f;
+        }
+        return yaw;
+    }
+
     enum WeaponType {
         PISTOL,
         RIFLE,
@@ -110,50 +119,50 @@ namespace Weapon {
 	    STUDDED_HYDRA_GLOVES = 5035
     };
 
-    WeaponType GetWeaponType(ItemDefinitionIndex weaponID) {
+    WeaponType GetWeaponType(WeaponId weaponID) {
     // Implement a function that returns the WeaponType based on the weaponID.
     // You can use the weaponID to determine which type of weapon it is.
 
     switch (weaponID) {
         // Sniper Rifles
         case WeaponId::WEAPON_AWP: case WeaponId::WEAPON_SCAR20: case WeaponId::WEAPON_G3SG1: case WeaponId::WEAPON_SSG08:
-            return WeaponType::Sniper;
+            return WeaponType::SNIPER;
 
         // Rifles
         case WeaponId::WEAPON_AK47: case WeaponId::WEAPON_AUG: case WeaponId::WEAPON_FAMAS: case WeaponId::WEAPON_GALILAR: 
         case WeaponId::WEAPON_M4A1: case WeaponId::WEAPON_SG556: case WeaponId::WEAPON_M4A1_SILENCER:
-            return WeaponType::Rifle;
+            return WeaponType::RIFLE;
 
         // SMGs
-        case WeaponId::WEAPON_MAC10: case WeaponId::WEAPON_P90: case WeaponId::WEAPON_MP5: case WeaponId::WEAPON_UMP45:
+        case WeaponId::WEAPON_MAC10: case WeaponId::WEAPON_P90: case WeaponId::WEAPON_MP5SD: case WeaponId::WEAPON_UMP45:
         case WeaponId::WEAPON_MP7: case WeaponId::WEAPON_MP9: case WeaponId::WEAPON_BIZON:
             return WeaponType::SMG;
 
         // Shotguns
         case WeaponId::WEAPON_XM1014: case WeaponId::WEAPON_NOVA: case WeaponId::WEAPON_MAG7: case WeaponId::WEAPON_SAWEDOFF:
-            return WeaponType::Shotgun;
+            return WeaponType::SHOTGUN;
 
         // Pistols
         case WeaponId::WEAPON_DEAGLE: case WeaponId::WEAPON_ELITE: case WeaponId::WEAPON_FIVESEVEN: case WeaponId::WEAPON_GLOCK:
         case WeaponId::WEAPON_TEC9: case WeaponId::WEAPON_HKP2000: case WeaponId::WEAPON_USP_SILENCER: case WeaponId::WEAPON_P250:
         case WeaponId::WEAPON_CZ75A: case WeaponId::WEAPON_REVOLVER:
-            return WeaponType::Pistol;
+            return WeaponType::PISTOL;
 
         // Knives
         case WeaponId::WEAPON_KNIFE: case WeaponId::WEAPON_KNIFE_T: case WeaponId::WEAPON_BAYONET: case WeaponId::WEAPON_KNIFE_FLIP:
         case WeaponId::WEAPON_KNIFE_GUT: case WeaponId::WEAPON_KNIFE_KARAMBIT: case WeaponId::WEAPON_KNIFE_M9_BAYONET: case WeaponId::WEAPON_KNIFE_TACTICAL:
         case WeaponId::WEAPON_KNIFE_FALCHION: case WeaponId::WEAPON_KNIFE_SURVIVAL_BOWIE: case WeaponId::WEAPON_KNIFE_BUTTERFLY: case WeaponId::WEAPON_KNIFE_PUSH:
         case WeaponId::WEAPON_KNIFE_URSUS: case WeaponId::WEAPON_KNIFE_GYPSY_JACKKNIFE: case WeaponId::WEAPON_KNIFE_STILETTO: case WeaponId::WEAPON_KNIFE_WIDOWMAKER:
-            return WeaponType::Knife;
+            return WeaponType::KNIFE;
 
         // Grenades
         case WeaponId::WEAPON_FLASHBANG: case WeaponId::WEAPON_HEGRENADE: case WeaponId::WEAPON_SMOKEGRENADE: case WeaponId::WEAPON_MOLOTOV:
         case WeaponId::WEAPON_DECOY: case WeaponId::WEAPON_INCGRENADE: case WeaponId::WEAPON_TAGRENADE: case WeaponId::WEAPON_FIREBOMB:
         case WeaponId::WEAPON_DIVERSION: case WeaponId::WEAPON_FRAG_GRENADE:
-            return WeaponType::Grenade;
+            return WeaponType::GRENADE;
 
         default:
-            return WeaponType::Unknown;
+            return WeaponType::OTHER;
     }
 }
 
@@ -182,33 +191,30 @@ public:
     };
 
     struct PlayerState {
-        float x, y;         // Position
-        float vx, vy;       // Velocity
-        float speed;        // Maximum speed of the player
-        float abilityCooldown; // Time remaining before the ability can be used again
-        float baseSpeed;       // Normal speed of the player         // Current speed of the player
+        float x, y;           // Position
+        float width, height;  // Size of the player
+        float vx, vy;         // Velocity
+        float maxSpeed;       // Maximum speed of the player
+        float acceleration;   // Acceleration of the player
+        float abilityCooldown;// Time remaining before the ability can be used again
         float health;
-        bool isDashing;        // Whether the player is currently dashing
-        float dashDuration;    // Duration of the dash ability
+        bool isDashing;       // Whether the player is currently dashing
+        float dashDuration;   // Duration of the dash ability
         glm::vec3 position;
         glm::vec3 velocity;
-        glm::vec3 baseSpeed; // Normal speed of the player (per-axis)
-        glm::vec3 speed;     // Current speed of the player (per-axis)
-        bool isDashing;      // Whether the player is currently dashing
-        float dashDuration;  // Duration of the dash ability
-    };
-
-    enum class InputCommand {
-        MOVE_UP,
-        MOVE_DOWN,
-        MOVE_LEFT,
-        MOVE_RIGHT
+        glm::vec3 baseSpeedVec; // Normal speed of the player (per-axis)
+        glm::vec3 speedVec;     // Current speed of the player (per-axis)
     };
 
     struct GameState {
         double timestamp;
         std::vector<PlayerState> players;
         Boundary boundary;  // Game boundary
+    };
+
+    struct BoundingBox {
+        glm::vec3 min; // Minimum point of the bounding box (lower-left corner)
+        glm::vec3 max; // Maximum point of the bounding box (upper-right corner)
     };
 
     struct GameObject {

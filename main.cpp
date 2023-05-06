@@ -9,7 +9,6 @@
 #include "csgo.hpp"
 #include "offsets.hpp"
 #include "resolver.h"
-#include "../"
 
 using namespace offsets::netvars;
 using namespace offsets::signatures;

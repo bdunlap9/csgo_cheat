@@ -30,7 +30,7 @@ struct Vector3 {
         // Adjust the predicted position based on the wall distance
         Vector3 mapLayoutAdjustment(0, 0, 0);
         if (wallDistance < 50.0f) {
-            mapLayoutAdjustment = -predictedPosition.normalized() * (50.0f - wallDistance);
+            mapLayoutAdjustment = -predictedPosition.Normalized() * (50.0f - wallDistance);
         }
 
         return mapLayoutAdjustment;
